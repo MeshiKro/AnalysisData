@@ -16,4 +16,10 @@
     <PackageReference Include="Sylvan.Data.Csv" Version="1.1.13" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="github_software_forks.csv">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

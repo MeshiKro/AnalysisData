@@ -32,20 +32,19 @@ namespace AnalysisData
         private void filterData(DataTable dt)
         {
 
-            DataTable finaldt = createDataTableOfHTML(dt);
+            DataTable finaldt = createDataTableWithoutZeroForks(dt);
 
              finaldt = addUsernameToDataTable(finaldt);
 
             string[] cols = new string[] { "username" };
             finaldt = RemoveDuplicateRows(finaldt, cols);
 
-            finaldt = RemoveRows(1000, finaldt);
-
+            finaldt = RemoveRows(1500, finaldt);
 
             finaldt = addNumberOfFollowing(finaldt);
 
-
             saveToExcel(finaldt);
+            System.Diagnostics.Debug.WriteLine("DONE");
            
         }
 
@@ -54,7 +53,7 @@ namespace AnalysisData
             DataTable dt = finaldt.Clone();
             foreach (DataRow dr in finaldt.Rows)
             {
-                if (dt.Rows.Count >= 1000)
+                if (dt.Rows.Count >= len)
                     break;
 
                 dt.ImportRow(dr);
@@ -69,10 +68,13 @@ namespace AnalysisData
         {
             foreach (DataRow dr in finaldt.Rows)
             {
-
-                string following = getNumberOfFollowing(dr["username"].ToString());
-                if (following == "FALSE")
+                string following = "";
+                string bio = "";
+                string followers = getNumberOfFollowing(dr["username"].ToString(), out bio, out following);
+                if (followers == "FALSE")
                     break;
+                dr["followers"] = following;
+                dr["bio"] = bio;
                 dr["following"] = following;
 
             }
@@ -84,28 +86,32 @@ namespace AnalysisData
 
             foreach (DataRow dr in finaldt.Rows)
             {
-
                 string username = dr["url"].ToString().Split('/')[4].ToString();
-                dr["username"] = username;
-
-            
+                dr["username"] = username;         
 
             }
             return finaldt;
         }
 
-        private DataTable createDataTableOfHTML(DataTable dt)
+        private DataTable createDataTableWithoutZeroForks(DataTable dt)
         {
             DataTable finaldt = dt.Clone();
 
             foreach (DataRow dr in dt.Rows)
             {
-                if (dr["language"].ToString() == "HTML")
+                //if (dr["language"].ToString() == "HTML")
+                //    finaldt.ImportRow(dr);
+                if (dr["forks_count"].ToString() != "0")
+                {
                     finaldt.ImportRow(dr);
+                }
                 finaldt.AcceptChanges();
             }
-            finaldt.Columns.Add("following", typeof(string));
             finaldt.Columns.Add("username", typeof(string));
+            finaldt.Columns.Add("bio", typeof(string));
+            finaldt.Columns.Add("following", typeof(string)); 
+            finaldt.Columns.Add("followers", typeof(string));
+
             return finaldt;
         }
 
@@ -134,27 +140,35 @@ namespace AnalysisData
             var workbook = new XLWorkbook();
             finaldt.TableName = "dt";
             var worksheet = workbook.Worksheets.Add(finaldt);
-            workbook.SaveAs("finaldatatset.xlsx");
+            workbook.SaveAs(DateTime.Now.ToString("yyyyMMddHHmm")+"_finaldatatset.xlsx");
             workbook.Dispose();
         }
 
        
-        private string getNumberOfFollowing(string? username)
+        private string getNumberOfFollowing(string? username,out string bio,out string following)
         {
             string api = "https://api.github.com/users/" + username;
-
+             bio = "";
+             following = "";
             try
             {
                 string data = getData(api);
 
                 JObject jObj = JObject.Parse(data);
                 //                System.Diagnostics.Debug.WriteLine(jObj.ToString());
-                if (jObj != null && !jObj.ToString().Contains("API rate limit exceeded"))
-                    return jObj["following"].ToString();
+                if (jObj != null && !jObj.ToString().Contains("API rate limit exceeded") && !jObj.ToString().Contains("Not Found"))
+                {
+                    string followers = jObj["followers"].ToString();
+                    bio = jObj["bio"].ToString();
+                    following = jObj["following"].ToString();
+
+                    return followers;
+                }
                 if (jObj.ToString().Contains("API rate limit exceeded"))
                 {
                     System.Diagnostics.Debug.WriteLine(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>API rate limit exceeded");
-                    return "FALSE";                }
+                    return "FALSE";               
+                }
 
 
             }
@@ -170,6 +184,7 @@ namespace AnalysisData
         {
             var client = new RestClient(api);
             var request = new RestRequest();
+            request.AddHeader("Authorization", "token " + "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");
             request.Method = Method.Get;
             Task<RestResponse> response = client.ExecuteAsync(request);
             String content = response.Result.Content.ToString();
@@ -180,7 +195,7 @@ namespace AnalysisData
         {
             DataTable dt = new DataTable();
             dt.Columns.Add("username", typeof(string));
-            dt.Columns.Add("following", typeof(string));
+            dt.Columns.Add("followers", typeof(string));
             dt.Columns.Add("total_fork_count", typeof(string));
 
 
